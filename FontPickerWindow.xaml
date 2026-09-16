@@ -94,6 +94,9 @@
                              Foreground="White"
                              BorderThickness="0"
                              SelectionMode="Single"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling"
+                             ScrollViewer.CanContentScroll="True"
                              SelectionChanged="FontListBox_SelectionChanged">
                         <ListBox.ItemTemplate>
                             <DataTemplate>

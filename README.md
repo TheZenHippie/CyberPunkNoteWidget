@@ -14,10 +14,14 @@ Built with the exact design DNA and visual styling of **`CyberpunkTerminalWidget
 ## ✨ Key Features
 
 - **Borderless & Draggable HUD:** A chrome-free, transparent glass panel that floats seamlessly over your desktop wallpaper, IDEs, or games. Click and drag the header or background to reposition, or grab the bottom-right grip to resize.
-- **Multi-Format Text Engine:**
-  - Read, edit, and save `.txt`, `.md` (Markdown), `.css` (Stylesheets), `.xaml` / `.xml`, `.html` / `.htm`, `.json` / `.yaml`, and script files (`.ps1`, `.bat`, `.cmd`, `.js`, `.ts`, `.py`, `.cs`).
-  - Dynamic file type badge (e.g. `[ .MD ]`, `[ .TXT ]`, `[ .CSS ]`, `[ .XAML ]`) with document title and unsaved changes indicator (`*`).
-- **Drag & Drop Loading:** Drag any supported note or code file directly from Windows Explorer onto the widget window to open it immediately.
+- **Multi-Format Code & Text Engine (AvalonEdit):**
+  - Powered by **AvalonEdit** for high-performance, hardware-accelerated code editing and real-time syntax highlighting.
+  - Built-in syntax highlighting support for **C#**, **Python**, **JavaScript**, **TypeScript**, **JSON**, **XML / XAML**, **HTML**, **CSS**, **C / C++**, **PowerShell**, **Markdown**, and **Plain Text**.
+  - **Auto-Detection:** Automatically activates the appropriate language syntax highlighting based on the file extension upon opening, saving, or drag & drop.
+  - **Clickable Language Badge:** Click the `[ .EXT ]` badge in the header or use the Context Menu to switch syntax highlighting dynamically on the fly.
+  - **Line Numbers:** Toggleable line numbers with custom cyberpunk color tinting.
+  - Dynamic file type badge (e.g. `[ .CS ]`, `[ .PY ]`, `[ .MD ]`, `[ .JSON ]`) with document title and unsaved changes indicator (`*`).
+- **Drag & Drop Loading:** Drag any supported note or code file directly from Windows Explorer onto the widget window to open it immediately with automatic syntax detection.
 - **Dual Transparency Sliders:**
   - **Window Opacity (0% – 100%):** Dims or completely removes the window backdrop, glass borders, and background image. Setting this to 0% produces a completely invisible window container.
   - **Font Opacity (10% – 100%):** Controls the note text opacity independently.
@@ -62,6 +66,8 @@ Right-click anywhere on the note widget to access the control HUD:
 | **Save As... (Ctrl+Shift+S)** | Opens file dialog to save note under a new filename/path. |
 | **Clear Note** | Clears note text. |
 | **Word Wrap (Alt+Z)** | Toggles word wrapping on or off. |
+| **Show Line Numbers** | Toggles editor line numbers on or off. |
+| **Syntax Highlighting** | Switch between Auto-detection, C#, Python, JavaScript, JSON, XML, HTML, CSS, C++, PowerShell, Markdown, or Plain Text. |
 | **Font Family** | Opens System Font Picker or selects top monospace favorites. |
 | **Font Size** | Select note font size from 10pt to 24pt. |
 | **Font Color** | Choose cyberpunk color presets or enter a custom hex color. |

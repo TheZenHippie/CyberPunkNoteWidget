@@ -15,6 +15,8 @@ using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using ICSharpCode.AvalonEdit;
+using ICSharpCode.AvalonEdit.Highlighting;
 using CyberPunkNoteWidget.Settings;
 using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
@@ -49,6 +51,9 @@ namespace CyberPunkNoteWidget
         private string? _currentFilePath = null;
         private string _lastSavedContent = "";
         private bool _isDirty = false;
+
+        private string _syntaxLanguage = "Auto";
+        private bool _showLineNumbers = true;
 
         private FontFamily _currentFontFamily = new FontFamily("Cascadia Code, Consolas, Courier New");
         private double _currentFontSize = 13.0;
@@ -102,6 +107,16 @@ namespace CyberPunkNoteWidget
             App.EnsureStandardMenuDropAlignment();
 
             InitializeComponent();
+
+            // Configure AvalonEdit Editor Defaults
+            NoteEditor.Options.HighlightCurrentLine = true;
+            NoteEditor.Options.ConvertTabsToSpaces = true;
+            NoteEditor.Options.IndentationSize = 4;
+            NoteEditor.Options.EnableHyperlinks = true;
+            NoteEditor.Options.RequireControlModifierForHyperlinkClick = true;
+
+            NoteEditor.TextArea.Caret.PositionChanged += NoteEditor_CaretPositionChanged;
+            NoteEditor.TextArea.SelectionChanged += NoteEditor_SelectionChanged;
 
             ApplyLoadedSettings();
 
@@ -197,6 +212,14 @@ namespace CyberPunkNoteWidget
             UpdateFontSizeMenuChecks();
             UpdateFontColorMenuChecks();
 
+            // Line numbers
+            _showLineNumbers = _settings.ShowLineNumbers;
+            SetLineNumbersState(_showLineNumbers);
+
+            // Syntax Language
+            _syntaxLanguage = !string.IsNullOrWhiteSpace(_settings.SyntaxLanguage) ? _settings.SyntaxLanguage : "Auto";
+            UpdateSyntaxMenuChecks();
+
             // Word wrap
             _wordWrap = _settings.WordWrap;
             SetWordWrapState(_wordWrap);
@@ -244,8 +267,9 @@ namespace CyberPunkNoteWidget
             {
                 _currentFilePath = null;
                 _lastSavedContent = _settings.LastScratchpadContent;
-                NoteTextBox.Text = _settings.LastScratchpadContent;
+                NoteEditor.Text = _settings.LastScratchpadContent;
                 _isDirty = false;
+                ApplySyntaxHighlighting();
                 UpdateDocumentHeader();
                 UpdateStatusFooter();
             }
@@ -253,8 +277,9 @@ namespace CyberPunkNoteWidget
             {
                 _currentFilePath = null;
                 _lastSavedContent = "";
-                NoteTextBox.Text = "";
+                NoteEditor.Text = "";
                 _isDirty = false;
+                ApplySyntaxHighlighting();
                 UpdateDocumentHeader();
                 UpdateStatusFooter();
             }
@@ -272,6 +297,8 @@ namespace CyberPunkNoteWidget
             _settings.WindowOpacity = _windowOpacity;
             _settings.FontOpacity = _fontOpacity;
             _settings.WordWrap = _wordWrap;
+            _settings.ShowLineNumbers = _showLineNumbers;
+            _settings.SyntaxLanguage = _syntaxLanguage;
 
             _settings.RainbowBorderEnabled = _rainbowBorderEnabled;
             _settings.BorderWidth = _borderWidth;
@@ -288,7 +315,7 @@ namespace CyberPunkNoteWidget
             _settings.LastOpenedFilePath = _currentFilePath;
             if (_currentFilePath == null)
             {
-                _settings.LastScratchpadContent = NoteTextBox.Text;
+                _settings.LastScratchpadContent = NoteEditor.Text;
             }
             else
             {
@@ -308,8 +335,9 @@ namespace CyberPunkNoteWidget
 
             _currentFilePath = null;
             _lastSavedContent = "";
-            NoteTextBox.Text = "";
+            NoteEditor.Text = "";
             _isDirty = false;
+            ApplySyntaxHighlighting();
             UpdateDocumentHeader();
             UpdateStatusFooter();
             SaveCurrentSettings();
@@ -345,9 +373,9 @@ namespace CyberPunkNoteWidget
 
         private void ClearDocument_Click(object sender, RoutedEventArgs e)
         {
-            if (!string.IsNullOrEmpty(NoteTextBox.Text))
+            if (!string.IsNullOrEmpty(NoteEditor.Text))
             {
-                if (NoteTextBox.Text.Length > 100)
+                if (NoteEditor.Text.Length > 100)
                 {
                     var res = MessageBox.Show(
                         "Are you sure you want to clear the entire note?",
@@ -357,7 +385,7 @@ namespace CyberPunkNoteWidget
                     if (res != MessageBoxResult.Yes) return;
                 }
 
-                NoteTextBox.Text = "";
+                NoteEditor.Text = "";
                 UpdateStatusFooter();
             }
         }
@@ -375,9 +403,10 @@ namespace CyberPunkNoteWidget
 
                 _currentFilePath = filePath;
                 _lastSavedContent = text;
-                NoteTextBox.Text = text;
+                NoteEditor.Text = text;
                 _isDirty = false;
 
+                ApplySyntaxHighlighting();
                 UpdateDocumentHeader();
                 UpdateStatusFooter();
                 SaveCurrentSettings();
@@ -403,9 +432,10 @@ namespace CyberPunkNoteWidget
 
             try
             {
-                File.WriteAllText(_currentFilePath, NoteTextBox.Text, Encoding.UTF8);
-                _lastSavedContent = NoteTextBox.Text;
+                File.WriteAllText(_currentFilePath, NoteEditor.Text, Encoding.UTF8);
+                _lastSavedContent = NoteEditor.Text;
                 _isDirty = false;
+                ApplySyntaxHighlighting();
                 UpdateDocumentHeader();
                 SaveCurrentSettings();
                 return true;
@@ -464,7 +494,16 @@ namespace CyberPunkNoteWidget
             string ext = _currentFilePath != null ? Path.GetExtension(_currentFilePath).ToUpperInvariant() : ".TXT";
             if (string.IsNullOrWhiteSpace(ext)) ext = ".TXT";
 
-            FileBadgeText.Text = $"[ {ext} ]";
+            if (_syntaxLanguage.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+            {
+                FileBadgeText.Text = $"[ {ext} ]";
+            }
+            else
+            {
+                string tag = _syntaxLanguage.ToUpperInvariant();
+                FileBadgeText.Text = $"[ {tag} ]";
+            }
+
             DocumentTitleText.Text = _currentFilePath != null ? Path.GetFileName(_currentFilePath) : "Untitled.txt";
             ModifiedIndicatorText.Visibility = _isDirty ? Visibility.Visible : Visibility.Collapsed;
 
@@ -474,16 +513,14 @@ namespace CyberPunkNoteWidget
 
         private void UpdateStatusFooter()
         {
-            int caretIndex = Math.Max(0, NoteTextBox.CaretIndex);
-            int lineIdx = NoteTextBox.GetLineIndexFromCharacterIndex(caretIndex);
-            int line = lineIdx >= 0 ? lineIdx + 1 : 1;
-            int lineStart = lineIdx >= 0 ? NoteTextBox.GetCharacterIndexFromLineIndex(lineIdx) : 0;
-            if (lineStart < 0) lineStart = 0;
-            int col = Math.Max(1, caretIndex - lineStart + 1);
+            if (NoteEditor?.TextArea?.Caret == null) return;
+
+            int line = NoteEditor.TextArea.Caret.Line;
+            int col = NoteEditor.TextArea.Caret.Column;
 
             LineColStatusText.Text = $"Ln {line}, Col {col}";
 
-            string text = NoteTextBox.Text;
+            string text = NoteEditor.Text;
             int charCount = text.Length;
 
             // Fast zero-allocation word count
@@ -509,12 +546,12 @@ namespace CyberPunkNoteWidget
             WordWrapStatusText.Text = _wordWrap ? "Wrap: ON" : "Wrap: OFF";
         }
 
-        private void NoteTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        private void NoteEditor_TextChanged(object? sender, EventArgs e)
         {
             if (!_isInitialized) return;
 
             bool wasDirty = _isDirty;
-            _isDirty = (NoteTextBox.Text != _lastSavedContent);
+            _isDirty = (NoteEditor.Text != _lastSavedContent);
 
             if (wasDirty != _isDirty)
             {
@@ -524,18 +561,42 @@ namespace CyberPunkNoteWidget
             UpdateStatusFooter();
         }
 
-        private void NoteTextBox_SelectionChanged(object sender, RoutedEventArgs e)
+        private void NoteEditor_CaretPositionChanged(object? sender, EventArgs e)
         {
             if (!_isInitialized) return;
             UpdateStatusFooter();
+        }
+
+        private void NoteEditor_SelectionChanged(object? sender, EventArgs e)
+        {
+            if (!_isInitialized) return;
+            UpdateStatusFooter();
+        }
+
+        private void NoteEditor_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            {
+                double delta = e.Delta > 0 ? 1.0 : -1.0;
+                double newSize = Math.Clamp(_currentFontSize + delta, 8.0, 36.0);
+                if (Math.Abs(newSize - _currentFontSize) > 0.01)
+                {
+                    _currentFontSize = newSize;
+                    _settings.FontSize = newSize;
+                    UpdateFontSizeMenuChecks();
+                    ApplyFontAndColor();
+                    SaveCurrentSettings();
+                }
+                e.Handled = true;
+            }
         }
 
         private void SetWordWrapState(bool enableWrap)
         {
             _wordWrap = enableWrap;
             WordWrapMenuItem.IsChecked = enableWrap;
-            NoteTextBox.TextWrapping = enableWrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
-            NoteTextBox.HorizontalScrollBarVisibility = enableWrap ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
+            NoteEditor.WordWrap = enableWrap;
+            NoteEditor.HorizontalScrollBarVisibility = enableWrap ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
             UpdateStatusFooter();
             SaveCurrentSettings();
         }
@@ -543,6 +604,129 @@ namespace CyberPunkNoteWidget
         private void WordWrap_Click(object sender, RoutedEventArgs e)
         {
             SetWordWrapState(WordWrapMenuItem.IsChecked);
+        }
+
+        private void SetLineNumbersState(bool showLineNumbers)
+        {
+            _showLineNumbers = showLineNumbers;
+            ShowLineNumbersMenuItem.IsChecked = showLineNumbers;
+            NoteEditor.ShowLineNumbers = showLineNumbers;
+            SaveCurrentSettings();
+        }
+
+        private void ShowLineNumbers_Click(object sender, RoutedEventArgs e)
+        {
+            SetLineNumbersState(ShowLineNumbersMenuItem.IsChecked);
+        }
+
+        #endregion
+
+        #region Syntax Highlighting Support
+
+        private void SyntaxLanguage_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is MenuItem menuItem && menuItem.Tag is string lang)
+            {
+                SetSyntaxLanguage(lang);
+            }
+        }
+
+        private void FileBadge_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            // Cycle through common syntax languages on badge click
+            string[] quickLanguages = { "Auto", "C#", "Python", "JavaScript", "TypeScript", "JSON", "XML", "HTML", "CSS", "C++", "PowerShell", "MarkDown", "Plain Text" };
+            int currIndex = Array.FindIndex(quickLanguages, l => l.Equals(_syntaxLanguage, StringComparison.OrdinalIgnoreCase));
+            int nextIndex = (currIndex + 1) % quickLanguages.Length;
+            SetSyntaxLanguage(quickLanguages[nextIndex]);
+            e.Handled = true;
+        }
+
+        private void SetSyntaxLanguage(string language)
+        {
+            _syntaxLanguage = language;
+            _settings.SyntaxLanguage = language;
+            ApplySyntaxHighlighting();
+            UpdateSyntaxMenuChecks();
+            UpdateDocumentHeader();
+            SaveCurrentSettings();
+        }
+
+        private void ApplySyntaxHighlighting()
+        {
+            if (NoteEditor == null) return;
+
+            if (_syntaxLanguage.Equals("Plain Text", StringComparison.OrdinalIgnoreCase))
+            {
+                NoteEditor.SyntaxHighlighting = null;
+                return;
+            }
+
+            if (_syntaxLanguage.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(_currentFilePath))
+                {
+                    string ext = Path.GetExtension(_currentFilePath);
+                    NoteEditor.SyntaxHighlighting = GetDefinitionByExtensionOrName(ext);
+                }
+                else
+                {
+                    NoteEditor.SyntaxHighlighting = null;
+                }
+                return;
+            }
+
+            NoteEditor.SyntaxHighlighting = GetDefinitionByExtensionOrName(_syntaxLanguage);
+        }
+
+        private IHighlightingDefinition? GetDefinitionByExtensionOrName(string langOrExt)
+        {
+            if (string.IsNullOrWhiteSpace(langOrExt)) return null;
+
+            string clean = langOrExt.Trim();
+            string lower = clean.ToLowerInvariant();
+            string ext = lower.StartsWith(".") ? lower : "." + lower;
+
+            // Try direct HighlightingManager name lookup
+            var def = HighlightingManager.Instance.GetDefinition(clean) ?? HighlightingManager.Instance.GetDefinition(lower);
+            if (def != null) return def;
+
+            // Try extension lookup
+            def = HighlightingManager.Instance.GetDefinitionByExtension(ext);
+            if (def != null) return def;
+
+            // Map custom / alternate extensions & names
+            return lower switch
+            {
+                "cs" or "csharp" or "c#" => HighlightingManager.Instance.GetDefinition("C#"),
+                "py" or "python" or "pyw" => HighlightingManager.Instance.GetDefinition("Python") ?? HighlightingManager.Instance.GetDefinitionByExtension(".py"),
+                "js" or "javascript" or "mjs" or "cjs" => HighlightingManager.Instance.GetDefinition("JavaScript"),
+                "ts" or "typescript" or "tsx" or "jsx" => HighlightingManager.Instance.GetDefinition("JavaScript") ?? HighlightingManager.Instance.GetDefinition("TypeScript"),
+                "json" => HighlightingManager.Instance.GetDefinition("JavaScript") ?? HighlightingManager.Instance.GetDefinition("JSON") ?? HighlightingManager.Instance.GetDefinitionByExtension(".json"),
+                "xml" or "xaml" or "svg" or "config" or "csproj" or "vbproj" or "props" or "targets" => HighlightingManager.Instance.GetDefinition("XML"),
+                "html" or "htm" or "xhtml" or "vue" or "svelte" => HighlightingManager.Instance.GetDefinition("HTML"),
+                "css" or "scss" or "sass" or "less" => HighlightingManager.Instance.GetDefinition("CSS"),
+                "cpp" or "c" or "c++" or "h" or "hpp" or "cc" or "cxx" => HighlightingManager.Instance.GetDefinition("C++"),
+                "php" or "phtml" => HighlightingManager.Instance.GetDefinition("PHP"),
+                "java" or "class" => HighlightingManager.Instance.GetDefinition("Java"),
+                "md" or "markdown" or "mdown" or "mkd" => HighlightingManager.Instance.GetDefinition("MarkDown") ?? HighlightingManager.Instance.GetDefinitionByExtension(".md"),
+                "ps1" or "psm1" or "psd1" or "powershell" => HighlightingManager.Instance.GetDefinitionByExtension(".ps1"),
+                "bat" or "cmd" or "batch" => HighlightingManager.Instance.GetDefinitionByExtension(".bat") ?? HighlightingManager.Instance.GetDefinitionByExtension(".cmd"),
+                "sql" => HighlightingManager.Instance.GetDefinition("SQL") ?? HighlightingManager.Instance.GetDefinitionByExtension(".sql"),
+                _ => null
+            };
+        }
+
+        private void UpdateSyntaxMenuChecks()
+        {
+            if (SyntaxHighlightingMenuItem == null) return;
+
+            foreach (var item in SyntaxHighlightingMenuItem.Items.OfType<MenuItem>())
+            {
+                if (item.Tag is string tag)
+                {
+                    item.IsChecked = tag.Equals(_syntaxLanguage, StringComparison.OrdinalIgnoreCase);
+                }
+            }
         }
 
         #endregion
@@ -816,13 +1000,27 @@ namespace CyberPunkNoteWidget
 
         private void ApplyFontAndColor()
         {
-            NoteTextBox.FontFamily = _currentFontFamily;
-            NoteTextBox.FontSize = _currentFontSize;
-            NoteTextBox.Foreground = _currentFontBrush;
-            NoteTextBox.CaretBrush = _currentFontBrush;
+            if (NoteEditor == null) return;
 
-            var selColor = Color.FromArgb(60, _currentFontColor.R, _currentFontColor.G, _currentFontColor.B);
-            NoteTextBox.SelectionBrush = new SolidColorBrush(selColor);
+            NoteEditor.FontFamily = _currentFontFamily;
+            NoteEditor.FontSize = _currentFontSize;
+            NoteEditor.Foreground = _currentFontBrush;
+            NoteEditor.LineNumbersForeground = new SolidColorBrush(Color.FromArgb(120, _currentFontColor.R, _currentFontColor.G, _currentFontColor.B));
+
+            if (NoteEditor.TextArea != null)
+            {
+                NoteEditor.TextArea.Caret.CaretBrush = _currentFontBrush;
+
+                var selColor = Color.FromArgb(60, _currentFontColor.R, _currentFontColor.G, _currentFontColor.B);
+                NoteEditor.TextArea.SelectionBrush = new SolidColorBrush(selColor);
+                NoteEditor.TextArea.SelectionBorder = new Pen(_currentFontBrush, 1);
+
+                if (NoteEditor.TextArea.TextView != null)
+                {
+                    NoteEditor.TextArea.TextView.CurrentLineBackground = new SolidColorBrush(Color.FromArgb(20, _currentFontColor.R, _currentFontColor.G, _currentFontColor.B));
+                    NoteEditor.TextArea.TextView.CurrentLineBorder = new Pen(new SolidColorBrush(Color.FromArgb(40, _currentFontColor.R, _currentFontColor.G, _currentFontColor.B)), 1);
+                }
+            }
 
             FileBadgeText.Foreground = _currentFontBrush;
             FileBadgeBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(140, _currentFontColor.R, _currentFontColor.G, _currentFontColor.B));
@@ -831,7 +1029,7 @@ namespace CyberPunkNoteWidget
             var thumbColor = Color.FromArgb(110, _currentFontColor.R, _currentFontColor.G, _currentFontColor.B);
             var thumbBrush = new SolidColorBrush(thumbColor);
             thumbBrush.Freeze();
-            NoteTextBox.Resources["ScrollThumbBrush"] = thumbBrush;
+            NoteEditor.Resources["ScrollThumbBrush"] = thumbBrush;
         }
 
         #endregion
@@ -1209,7 +1407,7 @@ namespace CyberPunkNoteWidget
 
         private void GlitchTimer_Tick(object? sender, EventArgs e)
         {
-            if (_isClosed || !_crtGlitchEnabled || _glitchChance <= 0)
+            if (_isClosed || !_crtGlitchEnabled || _glitchChance <= 0 || this.WindowState == WindowState.Minimized || this.Visibility != Visibility.Visible)
             {
                 ResetGlitchState();
                 return;
@@ -1320,7 +1518,7 @@ namespace CyberPunkNoteWidget
 
         private void SnowTimer_Tick(object? sender, EventArgs e)
         {
-            if (_isClosed || !_crtSnowEnabled || CrtSnowOverlay == null) return;
+            if (_isClosed || !_crtSnowEnabled || CrtSnowOverlay == null || this.WindowState == WindowState.Minimized || this.Visibility != Visibility.Visible) return;
 
             var bitmaps = GetOrCreateSnowBitmaps();
             if (bitmaps.Count == 0) return;
@@ -1456,7 +1654,7 @@ namespace CyberPunkNoteWidget
         private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             // Allow dragging from background when not interacting with editor
-            if (e.OriginalSource is not TextBox && e.LeftButton == MouseButtonState.Pressed)
+            if (e.OriginalSource is DependencyObject dep && !IsElementInEditor(dep) && e.LeftButton == MouseButtonState.Pressed)
             {
                 try
                 {
@@ -1464,6 +1662,19 @@ namespace CyberPunkNoteWidget
                 }
                 catch { }
             }
+        }
+
+        private bool IsElementInEditor(DependencyObject? element)
+        {
+            DependencyObject? curr = element;
+            while (curr != null)
+            {
+                if (curr == NoteEditor) return true;
+                if (curr is Visual visual) curr = VisualTreeHelper.GetParent(visual);
+                else if (curr is FrameworkContentElement fce) curr = fce.Parent;
+                else curr = LogicalTreeHelper.GetParent(curr);
+            }
+            return false;
         }
 
         private void Window_SizeChanged(object sender, SizeChangedEventArgs e)

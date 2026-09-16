@@ -13,6 +13,8 @@ namespace CyberPunkNoteWidget.Settings
         public double FontOpacity { get; set; } = 1.0;
         public string? BackgroundImagePath { get; set; }
         public bool WordWrap { get; set; } = true;
+        public bool ShowLineNumbers { get; set; } = true;
+        public string SyntaxLanguage { get; set; } = "Auto";
 
         public bool RainbowBorderEnabled { get; set; } = false;
         public double BorderWidth { get; set; } = 4.0;

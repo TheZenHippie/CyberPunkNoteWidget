@@ -1,6 +1,8 @@
 <Window x:Class="CyberPunkNoteWidget.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit"
+        xmlns:local="clr-namespace:CyberPunkNoteWidget"
         Title="CyberPunk Note Widget"
         Icon="icon.png"
         Height="460" Width="580"
@@ -38,6 +40,28 @@
                       IsChecked="True" 
                       InputGestureText="Alt+Z"
                       Click="WordWrap_Click"/>
+            <MenuItem x:Name="ShowLineNumbersMenuItem" 
+                      Header="Show Line Numbers" 
+                      IsCheckable="True" 
+                      IsChecked="True" 
+                      Click="ShowLineNumbers_Click"/>
+            <MenuItem x:Name="SyntaxHighlightingMenuItem" Header="Syntax Highlighting">
+                <MenuItem Header="Auto-detect (From File)" Click="SyntaxLanguage_Click" Tag="Auto" IsChecked="True"/>
+                <Separator/>
+                <MenuItem Header="C#" Click="SyntaxLanguage_Click" Tag="C#"/>
+                <MenuItem Header="Python" Click="SyntaxLanguage_Click" Tag="Python"/>
+                <MenuItem Header="JavaScript" Click="SyntaxLanguage_Click" Tag="JavaScript"/>
+                <MenuItem Header="TypeScript" Click="SyntaxLanguage_Click" Tag="TypeScript"/>
+                <MenuItem Header="JSON" Click="SyntaxLanguage_Click" Tag="JSON"/>
+                <MenuItem Header="XML / XAML" Click="SyntaxLanguage_Click" Tag="XML"/>
+                <MenuItem Header="HTML" Click="SyntaxLanguage_Click" Tag="HTML"/>
+                <MenuItem Header="CSS" Click="SyntaxLanguage_Click" Tag="CSS"/>
+                <MenuItem Header="C / C++" Click="SyntaxLanguage_Click" Tag="C++"/>
+                <MenuItem Header="PowerShell" Click="SyntaxLanguage_Click" Tag="PowerShell"/>
+                <MenuItem Header="Markdown" Click="SyntaxLanguage_Click" Tag="MarkDown"/>
+                <Separator/>
+                <MenuItem Header="Plain Text (None)" Click="SyntaxLanguage_Click" Tag="Plain Text"/>
+            </MenuItem>
             <Separator/>
 
             <!-- Font Family -->
@@ -402,7 +426,10 @@
                                 BorderThickness="1"
                                 CornerRadius="4"
                                 Padding="6,2"
-                                Margin="0,0,8,0">
+                                Margin="0,0,8,0"
+                                Cursor="Hand"
+                                ToolTip="Click to switch Syntax Highlighting"
+                                MouseLeftButtonDown="FileBadge_MouseLeftButtonDown">
                             <TextBlock x:Name="FileBadgeText"
                                        Text="[ .TXT ]"
                                        FontSize="10"
@@ -427,27 +454,24 @@
                 </DockPanel>
             </Border>
 
-            <!-- Main Note Editor -->
-            <TextBox x:Name="NoteTextBox"
-                     Grid.Row="1"
-                     AcceptsReturn="True"
-                     AcceptsTab="True"
-                     TextWrapping="Wrap"
-                     VerticalScrollBarVisibility="Auto"
-                     HorizontalScrollBarVisibility="Disabled"
-                     Background="Transparent"
-                     Foreground="#00FF66"
-                     FontFamily="Cascadia Code, Consolas, Courier New"
-                     FontSize="13"
-                     BorderThickness="0"
-                     Padding="10,6"
-                     SpellCheck.IsEnabled="False"
-                     CaretBrush="#00FF66"
-                     SelectionBrush="#4000FF66"
-                     SelectionOpacity="0.4"
-                     TextChanged="NoteTextBox_TextChanged"
-                     SelectionChanged="NoteTextBox_SelectionChanged">
-                <TextBox.Resources>
+            <!-- Main Note Editor (AvalonEdit) -->
+            <avalonEdit:TextEditor x:Name="NoteEditor"
+                                   Grid.Row="1"
+                                   Background="Transparent"
+                                   Foreground="#00FF66"
+                                   FontFamily="Cascadia Code, Consolas, Courier New"
+                                   FontSize="13"
+                                   BorderThickness="0"
+                                   Padding="10,6"
+                                   ShowLineNumbers="True"
+                                   LineNumbersForeground="#505A70"
+                                   WordWrap="True"
+                                   VerticalScrollBarVisibility="Auto"
+                                   HorizontalScrollBarVisibility="Disabled"
+                                   SnapsToDevicePixels="True"
+                                   PreviewMouseWheel="NoteEditor_PreviewMouseWheel"
+                                   TextChanged="NoteEditor_TextChanged">
+                <avalonEdit:TextEditor.Resources>
                     <SolidColorBrush x:Key="ScrollThumbBrush" Color="#6000FF66"/>
                     <Style TargetType="{x:Type ScrollBar}">
                         <Setter Property="Stylus.IsPressAndHoldEnabled" Value="false"/>
@@ -535,8 +559,8 @@
                             </Trigger>
                         </Style.Triggers>
                     </Style>
-                </TextBox.Resources>
-            </TextBox>
+                </avalonEdit:TextEditor.Resources>
+            </avalonEdit:TextEditor>
 
             <!-- Status Footer Bar -->
             <Border x:Name="FooterBarBorder"
